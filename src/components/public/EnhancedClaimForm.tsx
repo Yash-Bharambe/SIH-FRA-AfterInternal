@@ -318,7 +318,7 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto p-8 animate-forest-fade-in relative bg-gradient-to-b from-green-50 via-white to-green-50 backdrop-blur-sm rounded-2xl border border-green-100 shadow">
+    <div className="max-w-4xl mx-auto p-8 animate-forest-fade-in relative bg-gradient-to-b from-green-50 via-white to-green-50 backdrop-blur-sm rounded-2xl border border-green-100 shadow">
       <div className="text-center mb-8">
         <h2 className="text-3xl font-semibold text-green-800">Submit FRA Claim</h2>
         <div className="mt-2 flex justify-center">
@@ -477,7 +477,8 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
 
       <div className="mt-6">
         <button
-  type="submit"
+  type="button"
+  onClick={handleSubmit}
   disabled={isSubmitting}
   className="group w-full bg-green-600 disabled:bg-green-400 text-white py-3.5 px-6 rounded-lg transition-all duration-300 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transform hover:scale-105"
 >
@@ -497,7 +498,7 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
           </div>
         </button>
       </div>
-    </form>
+    </div>
   );
 };
 
