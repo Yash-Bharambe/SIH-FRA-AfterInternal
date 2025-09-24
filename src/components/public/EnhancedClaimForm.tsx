@@ -39,12 +39,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ label, name, required = false, 
         <div className="flex items-center justify-between gap-3">
           <div className={`text-sm ${currentFile ? 'text-forest-dark' : 'text-forest-medium'} truncate`}>
             {currentFile ? currentFile.name : 'No file chosen'}
-          </div>
+        </div>
           <div className="flex items-center gap-2">
             <button type="button" className="forest-button-secondary py-1 px-3" onClick={() => inputRef.current?.click()}>
               Choose file
             </button>
-          </div>
+        </div>
         </div>
         <input
           ref={inputRef}
@@ -192,8 +192,15 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
       setFormData(prev => ({ ...prev, ...synced }));
       // Minimal payload to Supabase; map UI form to DB shape
       const areaNumber = parseFloat((synced.landClaimed || formData.landClaimed).replace(/[^0-9.]/g, '')) || 0;
+      // Generate a short acknowledgment id (client-side) e.g., FRA-YYMMDD-xxxx
+      const date = new Date();
+      const yymmdd = `${String(date.getFullYear()).slice(-2)}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}`;
+      const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const ackId = `FRA-${yymmdd}-${rand}`;
+
       const payload = {
         user_id: user?.id || 'public-guest',
+        ack_id: ackId,
         village: synced.village || formData.village,
         area: areaNumber,
         coordinates: synced.surveyOrGps || formData.surveyOrGps,
@@ -209,6 +216,8 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
       console.log('Submitting claim payload:', payload);
       const claim = await supabaseClaimsService.create(payload);
       setSubmitted(true);
+      // Show acknowledgment to user
+      alert(`Your claim has been submitted. Acknowledgment ID: ${ackId}`);
       if (onSubmitSuccess) onSubmitSuccess();
     } catch (error) {
       console.error('Error submitting form:', error);

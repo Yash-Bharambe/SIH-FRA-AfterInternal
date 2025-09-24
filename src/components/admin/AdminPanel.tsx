@@ -80,20 +80,47 @@ export const AdminPanel: React.FC = () => {
     return statusMatch && searchMatch;
   });
 
-  const handleStatusUpdate = (claimId: string, newStatus: string) => {
-    const updatedClaims = claims.map(claim => 
-      claim.id === claimId 
-        ? { 
-            ...claim, 
-            status: newStatus as 'pending' | 'approved' | 'rejected',
-            grantDate: newStatus === 'approved' ? new Date().toISOString().split('T')[0] : undefined,
-            approved_at: newStatus === 'approved' ? new Date().toISOString() : undefined
-          }
-        : claim
-    );
-    setClaims(updatedClaims);
-    setIsModalOpen(false);
-    setSelectedClaim(null);
+  const handleStatusUpdate = async (claimId: string, newStatus: 'approved' | 'rejected') => {
+    try {
+      let reason: string | undefined;
+      if (newStatus === 'rejected') {
+        reason = prompt('Please provide a reason for rejection:') || undefined;
+      }
+      await supabaseClaimsService.updateStatus({ id: claimId, status: newStatus, rejection_reason: reason });
+      // Re-fetch from DB to ensure UI reflects persisted state
+      const rows = await supabaseClaimsService.listAll();
+      const mapped = rows.map(r => ({
+        id: r.id,
+        user_id: r.user_id,
+        village: r.village,
+        area: r.area,
+        coordinates: r.coordinates,
+        document_url: r.document_url ?? undefined,
+        status: r.status,
+        created_at: r.created_at,
+        approved_at: r.approved_at ?? undefined,
+        applicantName: r.applicant_name ?? undefined,
+        claimType: r.claim_type ?? undefined,
+        documents: r.documents ?? undefined,
+        claimId: r.id || `FRA-${r.id}`,
+        type: r.claim_type || 'IFR',
+        applicant: r.applicant_name || 'Unknown Applicant',
+        block: 'Kalahandi',
+        district: 'Kalahandi',
+        state: 'Odisha',
+        tribalGroup: 'Gond',
+        areaHectares: r.area,
+        grantDate: r.approved_at ?? undefined,
+        documentUrl: r.document_url ?? undefined
+      }));
+      setClaims(mapped);
+    } catch (e) {
+      console.error('Failed to update status', e);
+      alert('Failed to update status. Please try again.');
+    } finally {
+      setIsModalOpen(false);
+      setSelectedClaim(null);
+    }
   };
 
   const openClaimModal = (claim: Claim) => {
