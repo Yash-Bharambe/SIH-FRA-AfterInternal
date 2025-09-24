@@ -1,47 +1,66 @@
 import React, { useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { supabaseClaimsService } from '../../services/supabaseClaimsService';
+import { useAuth } from '../../contexts/AuthContext';
 import { useTesseractOCR } from '../../hooks/useTesseractOCR';
 import { extractFieldsFromText } from '../../utils/ocrExtract';
 import { Upload, Eye, Loader2 } from 'lucide-react';
-import { supabaseClaimsService } from '../../services/supabaseClaimsService';
-import { useAuth } from '../../contexts/AuthContext';
 
-interface AccordionSectionProps {
-  title: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
+interface FileUploadProps {
+  label: string;
+  name: string;
+  required?: boolean;
+  accept?: string;
+  currentFile: File | null;
+  onFileSelected: (file: File) => void;
+  error?: boolean;
 }
 
-const AccordionSection: React.FC<AccordionSectionProps> = ({
-  title,
-  isOpen,
-  onToggle,
-  children,
-}) => {
+const FileUpload: React.FC<FileUploadProps> = ({ label, name, required = false, accept = '', currentFile, onFileSelected, error = false }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) {
+      onFileSelected(file);
+    }
+  };
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
   return (
-    <div className="mb-3 bg-white/50 backdrop-blur-sm rounded-lg border border-forest-light/10 transition-shadow hover:shadow-sm">
-      <button
-        className="w-full px-6 py-4 text-left flex justify-between items-center group"
-        onClick={onToggle}
-      >
-        <div className="flex items-center space-x-3">
-          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isOpen ? 'bg-forest-accent' : 'bg-forest-light'}`}></div>
-          <span className={`font-medium text-base transition-colors ${isOpen ? 'text-forest-primary' : 'text-forest-medium'}`}>
-            {title}
-          </span>
+    <div className="mb-4">
+      <label className="block text-sm text-forest-medium mb-2">
+        {label}
+        {required && <span className="text-error ml-1 text-xs">*</span>}
+      </label>
+      <div className={`group border ${error ? 'border-red-300' : 'border-green-200'} bg-white/80 rounded-lg transition-all duration-200 hover:border-green-400 shadow-sm p-3`} onDrop={handleDrop} onDragOver={handleDragOver}>
+        <div className="flex items-center justify-between gap-3">
+          <div className={`text-sm ${currentFile ? 'text-forest-dark' : 'text-forest-medium'} truncate`}>
+            {currentFile ? currentFile.name : 'No file chosen'}
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" className="forest-button-secondary py-1 px-3" onClick={() => inputRef.current?.click()}>
+              Choose file
+            </button>
+          </div>
         </div>
-        <div className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
-          <svg className={`w-5 h-5 transition-colors ${isOpen ? 'text-forest-accent' : 'text-forest-light'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-      {isOpen && (
-        <div className="px-6 pb-6 pt-2">
-          {children}
-        </div>
-      )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              onFileSelected(e.target.files[0]);
+            }
+          }}
+        />
+        {error && (
+          <div className="mt-2 text-xs text-red-600">This document is required.</div>
+        )}
+      </div>
     </div>
   );
 };
@@ -73,14 +92,7 @@ interface EnhancedClaimFormProps {
 }
 
 const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }) => {
-  const { t } = useTranslation();
   const { user } = useAuth();
-  const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
-    details: true,
-    land: false,
-    documents: false,
-  });
-
   const [formData, setFormData] = useState<FormData>({
     claimType: '',
     claimantName: '',
@@ -101,28 +113,37 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
-
-  // OCR state shared across sections
+  const [claimantNameInput, setClaimantNameInput] = useState<string>('');
+  const [guardianNameInput, setGuardianNameInput] = useState<string>('');
+  const [genderAgeInput, setGenderAgeInput] = useState<string>('');
+  const [casteInput, setCasteInput] = useState<string>('');
+  const [villageInput, setVillageInput] = useState<string>('');
+  const [districtInput, setDistrictInput] = useState<string>('');
+  const [stateInput, setStateInput] = useState<string>('');
+  const [landClaimedInput, setLandClaimedInput] = useState<string>('');
+  const [surveyOrGpsInput, setSurveyOrGpsInput] = useState<string>('');
   const { isProcessing, progress, runOnFile } = useTesseractOCR();
   const [sectionOcrFile, setSectionOcrFile] = useState<File | null>(null);
   const sharedOcrInputRef = useRef<HTMLInputElement>(null);
   const [manualText, setManualText] = useState<string>('');
+
   const applyExtracted = (text: string) => {
     const f = extractFieldsFromText(text);
-    setFormData(prev => ({
-      ...prev,
-      claimType: touched.claimType ? prev.claimType : (f.claimType ?? prev.claimType),
-      claimantName: touched.claimantName ? prev.claimantName : (f.claimantName ?? prev.claimantName),
-      guardianName: touched.guardianName ? prev.guardianName : (f.guardianName ?? prev.guardianName),
-      genderAge: touched.genderAge ? prev.genderAge : (f.genderAge ?? prev.genderAge),
-      caste: touched.caste ? prev.caste : (f.caste ?? prev.caste),
-      village: touched.village ? prev.village : (f.village ?? prev.village),
-      district: touched.district ? prev.district : (f.district ?? prev.district),
-      state: touched.state ? prev.state : (f.state ?? prev.state),
-      landClaimed: touched.landClaimed ? prev.landClaimed : (f.landClaimed ?? prev.landClaimed),
-      surveyOrGps: touched.surveyOrGps ? prev.surveyOrGps : (f.surveyNumber ?? f.coordinates ?? prev.surveyOrGps),
-    }));
+    if (!touched.claimType && f.claimType) {
+      setFormData(prev => ({ ...prev, claimType: f.claimType! }));
+    }
+    if (!touched.claimantName && f.claimantName) setClaimantNameInput(f.claimantName);
+    if (!touched.guardianName && f.guardianName) setGuardianNameInput(f.guardianName);
+    if (!touched.genderAge && f.genderAge) setGenderAgeInput(f.genderAge);
+    if (!touched.caste && f.caste) setCasteInput(f.caste);
+    if (!touched.village && f.village) setVillageInput(f.village);
+    if (!touched.district && f.district) setDistrictInput(f.district);
+    if (!touched.state && f.state) setStateInput(f.state);
+    const coords = f.surveyNumber ?? f.coordinates;
+    if (!touched.surveyOrGps && coords) setSurveyOrGpsInput(coords);
+    if (!touched.landClaimed && f.landClaimed) setLandClaimedInput(f.landClaimed);
   };
+
   const runSectionOCR = async () => {
     if (!sectionOcrFile) {
       sharedOcrInputRef.current?.click();
@@ -132,35 +153,22 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
     applyExtracted(text);
   };
 
-  const toggleSection = (section: string) => {
-    setOpenSections(prev => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
     setTouched(prev => ({ ...prev, [name]: true }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
-    if (e.target.files && e.target.files[0]) {
-      setFormData(prev => ({
-        ...prev,
-        [field]: e.target.files![0],
-      }));
-    }
+  const setFileField = (field: keyof FormData) => (file: File) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: file,
+    }));
   };
 
   // removed evidence checkbox logic as only 4 mandatory uploads are required
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     try {
       setSubmitError(null);
       setIsSubmitting(true);
@@ -169,14 +177,27 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
         setSubmitError('Please select all mandatory documents before submitting.');
         return;
       }
+      // sync latest visible inputs into formData in case fields weren't blurred
+      const synced = {
+        claimantName: claimantNameInput,
+        guardianName: guardianNameInput,
+        genderAge: genderAgeInput,
+        caste: casteInput,
+        village: villageInput,
+        district: districtInput,
+        state: stateInput,
+        landClaimed: landClaimedInput,
+        surveyOrGps: surveyOrGpsInput,
+      };
+      setFormData(prev => ({ ...prev, ...synced }));
       // Minimal payload to Supabase; map UI form to DB shape
-      const areaNumber = parseFloat(formData.landClaimed.replace(/[^0-9.]/g, '')) || 0;
+      const areaNumber = parseFloat((synced.landClaimed || formData.landClaimed).replace(/[^0-9.]/g, '')) || 0;
       const payload = {
         user_id: user?.id || 'public-guest',
-        village: formData.village,
+        village: synced.village || formData.village,
         area: areaNumber,
-        coordinates: formData.surveyOrGps,
-        applicant_name: formData.claimantName,
+        coordinates: synced.surveyOrGps || formData.surveyOrGps,
+        applicant_name: synced.claimantName || formData.claimantName,
         claim_type: formData.claimType,
         documents: [
           formData.identityProof ? 'identityProof' : '',
@@ -219,89 +240,18 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
     setManualText('');
     setSubmitted(false);
     setSubmitError(null);
+    setClaimantNameInput('');
+    setGuardianNameInput('');
+    setGenderAgeInput('');
+    setCasteInput('');
+    setVillageInput('');
+    setDistrictInput('');
+    setStateInput('');
+    setLandClaimedInput('');
+    setSurveyOrGpsInput('');
   };
 
-  const InputField: React.FC<{
-    label: string;
-    name: string;
-    type?: string;
-    value?: string;
-    required?: boolean;
-  }> = ({ label, name, type = 'text', value = '', required = false }) => (
-    <div className="mb-5">
-      <label className="block text-sm text-forest-medium mb-1">
-        {label}
-        {required && <span className="text-error ml-1 text-xs">*</span>}
-      </label>
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={handleInputChange}
-        required={required}
-        className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 focus:outline-none transition-colors rounded-md shadow-sm"
-      />
-    </div>
-  );
-
-  const FileUpload: React.FC<{
-    label: string;
-    name: string;
-    required?: boolean;
-    accept?: string;
-  }> = ({ label, name, required = false, accept = '' }) => {
-    const currentFile = (formData as any)[name] as File | null;
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const file = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) {
-        setFormData(prev => ({
-          ...prev,
-          [name]: file,
-        }));
-      }
-    };
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-    };
-    return (
-      <div className="mb-5">
-        <label className="block text-sm text-forest-medium mb-2">
-          {label}
-          {required && <span className="text-error ml-1 text-xs">*</span>}
-        </label>
-        <div className="group">
-          <div
-            className="relative border border-green-200 bg-white/70 rounded-lg transition-all duration-200 group-hover:border-green-400 shadow-sm"
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-          >
-            <input
-              type="file"
-              onChange={(e) => handleFileChange(e, name)}
-              accept={accept}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-            <div className="px-4 py-3 flex flex-col items-center justify-center">
-              <div className="flex items-center justify-center">
-                <svg className="w-5 h-5 text-green-600/70 group-hover:text-green-700 transition-colors mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="text-sm text-forest-medium group-hover:text-forest-dark transition-colors">
-                  Choose a file or drag & drop
-                </span>
-              </div>
-              <span className="mt-1 text-xs text-forest-medium">
-                {currentFile ? currentFile.name : 'No file chosen'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // removed inline InputField and old FileUpload implementations to avoid remounts
 
   if (submitted) {
     return (
@@ -312,19 +262,15 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
         </div>
         <div className="flex items-center justify-center gap-3">
           <button onClick={resetForm} className="forest-button-primary">Submit another claim</button>
-        </div>
       </div>
-    );
+    </div>
+  );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-8 animate-forest-fade-in relative bg-gradient-to-b from-green-50 via-white to-green-50 backdrop-blur-sm rounded-2xl border border-green-100 shadow">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-semibold text-green-800">Submit FRA Claim</h2>
-        <div className="mt-2 flex justify-center">
-          <div className="h-1 w-28 bg-gradient-to-r from-green-500 to-green-700 rounded-full shadow"></div>
-        </div>
-      </div>
+    <div className="max-w-3xl mx-auto p-8 animate-forest-fade-in bg-white/80 rounded-2xl border border-green-100 shadow">
+      <h2 className="text-2xl font-semibold text-green-800 mb-6">Submit FRA Claim</h2>
+
       <input
         ref={sharedOcrInputRef}
         type="file"
@@ -332,23 +278,14 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
         className="hidden"
         onChange={(e) => setSectionOcrFile(e.target.files?.[0] || null)}
       />
-
-      {/* Section 1: Claim Details */}
-      <AccordionSection
-        title="1. Claim Details"
-        isOpen={openSections.details}
-        onToggle={() => toggleSection('details')}
-      >
-        <div className="space-y-4">
-          <div className="flex items-center justify-end gap-2">
-            <label className="text-sm text-forest-medium">OCR for this section</label>
+      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="flex items-center gap-2">
               <button type="button" className="px-3 py-1.5 border rounded cursor-pointer text-sm flex items-center gap-2" onClick={() => sharedOcrInputRef.current?.click()}>
                 <Upload className="h-4 w-4" />
-                Select Image
+            Select Image for OCR
               </button>
               {sectionOcrFile && (
-                <span className="text-xs text-forest-medium max-w-[200px] truncate" title={sectionOcrFile.name}>{sectionOcrFile.name}</span>
+            <span className="text-xs text-forest-medium max-w-[240px] truncate" title={sectionOcrFile.name}>{sectionOcrFile.name}</span>
               )}
               <button type="button" onClick={runSectionOCR} disabled={!sectionOcrFile || isProcessing} className="forest-button-secondary flex items-center gap-2">
                 {isProcessing ? <Loader2 className="h-4 w-4 animate-forest-spin"/> : <Eye className="h-4 w-4"/>}
@@ -356,28 +293,28 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
               </button>
             </div>
           </div>
-          <div className="mt-3">
+
+      <div className="mb-6">
             <label className="block text-sm text-forest-medium mb-1">Or paste text to autofill</label>
             <div className="flex items-start gap-2">
               <textarea
                 value={manualText}
                 onChange={(e) => setManualText(e.target.value)}
                 className="w-full p-2 border rounded-md h-24"
-                placeholder="Type or paste section text here..."
+            placeholder="Paste text here and click Parse"
               />
-              <button type="button" onClick={() => { if (manualText.trim()) { applyExtracted(manualText); } }} className="forest-button-secondary whitespace-nowrap">Parse text</button>
+          <button type="button" onClick={() => { if (manualText.trim()) { applyExtracted(manualText); } }} className="forest-button-secondary whitespace-nowrap">Parse</button>
             </div>
           </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Type of Claim
-            </label>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-2">
+          <label className="block text-sm text-forest-medium mb-1">Type of Claim<span className="text-error ml-1 text-xs">*</span></label>
             <select
               name="claimType"
               value={formData.claimType}
-              onChange={handleInputChange}
+            onChange={handleSelectChange}
               className="w-full p-2 border rounded-md border-green-200 focus:border-green-600"
-              required
             >
               <option value="">Select claim type</option>
               <option value="IFR">Individual Forest Rights (IFR)</option>
@@ -385,89 +322,56 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
               <option value="CFR">Community Forest Resource Rights (CFR)</option>
             </select>
           </div>
-          <InputField
-            label="Claimant Name"
-            name="claimantName"
-            value={formData.claimantName}
-            required
-          />
-          <InputField
-            label="Father's/Mother's/Spouse's Name"
-            name="guardianName"
-            value={formData.guardianName}
-            required
-          />
-          <InputField
-            label="Gender & Age"
-            name="genderAge"
-            value={formData.genderAge}
-            required
-          />
-          <InputField
-            label="Caste / Tribal Group"
-            name="caste"
-            value={formData.caste}
-            required
-          />
-        </div>
-      </AccordionSection>
 
-      {/* Section 2: Location & Land */}
-      <AccordionSection
-        title="2. Location & Land"
-        isOpen={openSections.land}
-        onToggle={() => toggleSection('land')}
-      >
-        <div className="space-y-4">
-          <div className="flex items-center justify-end gap-2">
-            <label className="text-sm text-forest-medium">OCR for this section</label>
-            <div className="flex items-center gap-2">
-              <button type="button" className="px-3 py-1.5 border rounded cursor-pointer text-sm flex items-center gap-2" onClick={() => sharedOcrInputRef.current?.click()}>
-                <Upload className="h-4 w-4" />
-                Select Image
-              </button>
-              {sectionOcrFile && (
-                <span className="text-xs text-forest-medium max-w-[200px] truncate" title={sectionOcrFile.name}>{sectionOcrFile.name}</span>
-              )}
-              <button type="button" onClick={runSectionOCR} disabled={!sectionOcrFile || isProcessing} className="forest-button-secondary flex items-center gap-2">
-                {isProcessing ? <Loader2 className="h-4 w-4 animate-forest-spin"/> : <Eye className="h-4 w-4"/>}
-                {isProcessing ? `Scanning ${progress}%` : 'Scan & Autofill'}
-              </button>
-            </div>
-          </div>
-          <div className="mt-3">
-            <label className="block text-sm text-forest-medium mb-1">Or paste text to autofill</label>
-            <div className="flex items-start gap-2">
-              <textarea
-                value={manualText}
-                onChange={(e) => setManualText(e.target.value)}
-                className="w-full p-2 border rounded-md h-24"
-                placeholder="Type or paste section text here..."
-              />
-              <button type="button" onClick={() => { if (manualText.trim()) { applyExtracted(manualText); } }} className="forest-button-secondary whitespace-nowrap">Parse text</button>
-            </div>
-          </div>
-          <InputField label="Village" name="village" value={formData.village} required />
-          <InputField label="District" name="district" value={formData.district} required />
-          <InputField label="State" name="state" value={formData.state} required />
-          <InputField label="Land Claimed (area + unit)" name="landClaimed" value={formData.landClaimed} required />
-          <InputField label="Survey Number / GPS Coordinates" name="surveyOrGps" value={formData.surveyOrGps} required />
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Claimant Name<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={claimantNameInput} onChange={(e) => setClaimantNameInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, claimantName: true })); setFormData(prev => ({ ...prev, claimantName: claimantNameInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
         </div>
-      </AccordionSection>
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Father's/Mother's/Spouse's Name<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={guardianNameInput} onChange={(e) => setGuardianNameInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, guardianName: true })); setFormData(prev => ({ ...prev, guardianName: guardianNameInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+        </div>
 
-      {/* Section 3: Mandatory Documents */}
-      <AccordionSection
-        title="3. Mandatory Documents"
-        isOpen={openSections.documents}
-        onToggle={() => toggleSection('documents')}
-      >
-        <div className="space-y-4">
-          <FileUpload label="Identity Proof" name="identityProof" required accept="image/*,application/pdf" />
-          <FileUpload label="Tribe/Community Certificate" name="tribeCertificate" required accept="image/*,application/pdf" />
-          <FileUpload label="FRA Claim Form (Form-A)" name="fraFormA" required accept="image/*,application/pdf" />
-          <FileUpload label="Gram Sabha Resolution" name="gramSabhaResolution" required accept="image/*,application/pdf" />
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Gender & Age<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={genderAgeInput} onChange={(e) => setGenderAgeInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, genderAge: true })); setFormData(prev => ({ ...prev, genderAge: genderAgeInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
         </div>
-      </AccordionSection>
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Caste / Tribal Group<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={casteInput} onChange={(e) => setCasteInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, caste: true })); setFormData(prev => ({ ...prev, caste: casteInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+        </div>
+
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Village<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={villageInput} onChange={(e) => setVillageInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, village: true })); setFormData(prev => ({ ...prev, village: villageInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+            </div>
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">District<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={districtInput} onChange={(e) => setDistrictInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, district: true })); setFormData(prev => ({ ...prev, district: districtInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+          </div>
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">State<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={stateInput} onChange={(e) => setStateInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, state: true })); setFormData(prev => ({ ...prev, state: stateInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+            </div>
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Land Claimed (area + unit)<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={landClaimedInput} onChange={(e) => setLandClaimedInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, landClaimed: true })); setFormData(prev => ({ ...prev, landClaimed: landClaimedInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+          </div>
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Survey Number / GPS Coordinates<span className="text-error ml-1 text-xs">*</span></label>
+          <input type="text" value={surveyOrGpsInput} onChange={(e) => setSurveyOrGpsInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, surveyOrGps: true })); setFormData(prev => ({ ...prev, surveyOrGps: surveyOrGpsInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <h3 className="text-lg font-medium text-forest-dark mb-3">Mandatory Documents</h3>
+        <div className="space-y-4">
+          <FileUpload label="Identity Proof" name="identityProof" required accept="image/*,application/pdf" currentFile={formData.identityProof} onFileSelected={(file) => { setSubmitError(null); setFileField('identityProof')(file); }} error={!formData.identityProof} />
+          <FileUpload label="Tribe/Community Certificate" name="tribeCertificate" required accept="image/*,application/pdf" currentFile={formData.tribeCertificate} onFileSelected={(file) => { setSubmitError(null); setFileField('tribeCertificate')(file); }} error={!formData.tribeCertificate} />
+          <FileUpload label="FRA Claim Form (Form-A)" name="fraFormA" required accept="image/*,application/pdf" currentFile={formData.fraFormA} onFileSelected={(file) => { setSubmitError(null); setFileField('fraFormA')(file); }} error={!formData.fraFormA} />
+          <FileUpload label="Gram Sabha Resolution" name="gramSabhaResolution" required accept="image/*,application/pdf" currentFile={formData.gramSabhaResolution} onFileSelected={(file) => { setSubmitError(null); setFileField('gramSabhaResolution')(file); }} error={!formData.gramSabhaResolution} />
+        </div>
+      </div>
 
       {submitError && (
         <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
