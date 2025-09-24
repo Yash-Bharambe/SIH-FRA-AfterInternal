@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle, Clock, XCircle, MapPin, Calendar, Download } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { claimsService, Claim } from '../../services/claimsService';
+import { Claim } from '../../services/claimsService';
+import { supabaseClaimsService } from '../../services/supabaseClaimsService';
 
 export const MyClaims: React.FC = () => {
   const { user } = useAuth();
@@ -23,8 +24,29 @@ export const MyClaims: React.FC = () => {
   const loadClaims = async () => {
     try {
       setLoading(true);
-      const userClaims = await claimsService.getUserClaims(user!.id);
-      const userStats = await claimsService.getUserClaimStats(user!.id);
+      // fetch from Supabase, filter by user_id
+      const rows = await supabaseClaimsService.listAll();
+      const userRows = rows.filter(r => r.user_id === user!.id);
+      const userClaims: Claim[] = userRows.map(r => ({
+        id: r.id,
+        user_id: r.user_id,
+        village: r.village,
+        area: r.area,
+        coordinates: r.coordinates,
+        document_url: r.document_url ?? undefined,
+        status: r.status,
+        created_at: r.created_at,
+        approved_at: r.approved_at ?? undefined,
+        applicantName: r.applicant_name ?? undefined,
+        claimType: r.claim_type ?? undefined,
+        documents: r.documents ?? undefined,
+      }));
+      const userStats = {
+        total: userClaims.length,
+        approved: userClaims.filter(c => c.status === 'approved').length,
+        pending: userClaims.filter(c => c.status === 'pending').length,
+        rejected: userClaims.filter(c => c.status === 'rejected').length,
+      };
       
       setClaims(userClaims);
       setStats(userStats);

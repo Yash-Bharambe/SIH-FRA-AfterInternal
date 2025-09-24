@@ -47,14 +47,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = userType === 'employee' ? employeeMenuItems : publicMenuItems;
 
   return (
-    <aside className={`fixed top-[64px] left-0 h-[calc(100vh-64px)] bg-white border-r border-forest-sage/20 shadow-sm transition-all duration-300 ease-in-out z-10 ${
+    <aside className={`fixed top-[64px] left-0 h-[calc(100vh-64px)] bg-gradient-to-b from-forest-sage/20 via-white to-forest-sky/20 backdrop-blur-[2px] border-r border-forest-sage/30 shadow-md transition-all duration-300 ease-in-out z-10 ${
       isMinimized ? 'w-20' : 'w-72'
     }`}>
       <div className={`p-6 ${isMinimized ? 'px-3' : ''}`}>
         {/* Minimize Button */}
         <button
           onClick={onMinimizeToggle}
-          className="absolute right-0 -mr-3 top-8 bg-white p-1.5 rounded-full shadow-lg border border-forest-sage/20 hover:bg-forest-sage/5 transition-all duration-300 hover:scale-110 group z-50"
+          className="absolute right-0 -mr-3 top-8 bg-white/90 p-1.5 rounded-full shadow-lg border border-forest-sage/30 hover:bg-white transition-all duration-300 hover:scale-110 group z-50 ring-1 ring-forest-sage/20 hover:ring-forest-sage/40"
         >
           {isMinimized ? (
             <PanelLeftOpen className="h-4 w-4 text-forest-medium" />
@@ -65,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Sidebar Header */}
         <div className={`flex items-center ${isMinimized ? 'justify-center' : 'space-x-3'} mb-8`}>
-          <div className="p-2 bg-forest-gradient rounded-xl shadow-lg">
+          <div className="p-2 bg-forest-gradient rounded-xl shadow-2xl ring-1 ring-forest-sage/30">
             <TreePine className="h-6 w-6 text-white" />
           </div>
           {!isMinimized && (
@@ -88,21 +88,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onSectionChange(item.id)}
-                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all duration-300 group ${
+                className={`relative overflow-hidden w-full flex items-center justify-between p-4 rounded-xl transition-all duration-300 group ${
                   isActive
-                    ? 'forest-sidebar-item-active'
-                    : 'forest-sidebar-item hover:bg-forest-sage/10'
-                }`}
+                    ? 'forest-sidebar-item-active bg-gradient-to-r from-forest-sage/30 via-white to-forest-sky/30 shadow-md ring-1 ring-forest-sage/30'
+                    : 'forest-sidebar-item hover:bg-forest-sage/10 hover:shadow-sm'
+                } hover:translate-x-[1px]`}
                 title={isMinimized ? item.label : undefined}
               >
+                {isActive && (
+                  <span className="absolute left-0 top-0 h-full w-1 bg-forest-gradient"></span>
+                )}
                 <div className={`flex items-center ${isMinimized ? 'justify-center' : 'space-x-3'} ${isMinimized ? 'w-full' : ''}`}>
                   <div className={`p-2 rounded-lg transition-all duration-300 ${
                     isActive 
-                      ? 'bg-forest-gradient shadow-lg' 
+                      ? 'bg-forest-gradient shadow-lg ring-1 ring-forest-sage/30' 
                       : 'bg-forest-sage/20 group-hover:bg-forest-sage/30'
                   }`}>
                     <Icon className={`h-5 w-5 transition-colors duration-300 ${
-                      isActive ? 'text-white' : 'text-forest-medium group-hover:text-forest-deep'
+                      isActive ? 'text-white drop-shadow' : 'text-forest-medium group-hover:text-forest-deep'
                     }`} />
                   </div>
                   {!isMinimized && (
@@ -124,7 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Sidebar Footer */}
         {!isMinimized && (
-          <div className="mt-12 p-4 bg-forest-sage/10 rounded-xl border border-forest-sage/20">
+          <div className="mt-12 p-4 bg-gradient-to-r from-forest-sage/10 via-white to-forest-sky/10 rounded-xl border border-forest-sage/20 shadow-sm">
             <div className="flex items-center space-x-3 mb-3">
               <div className="w-3 h-3 bg-green-500 rounded-full animate-forest-pulse"></div>
               <span className="text-sm font-semibold text-forest-deep">System Status</span>

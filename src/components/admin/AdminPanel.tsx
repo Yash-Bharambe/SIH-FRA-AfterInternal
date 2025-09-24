@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Eye, CheckCircle, XCircle, Clock, FileText, MapPin, User, Calendar, Download, Filter, Search, Shield, TreePine, Mountain, Droplets } from 'lucide-react';
-import { claimsService } from '../../services/claimsService';
+import { supabaseClaimsService } from '../../services/supabaseClaimsService';
 
 interface Claim {
   id?: string;
@@ -29,23 +29,42 @@ interface Claim {
 }
 
 export const AdminPanel: React.FC = () => {
-  const [claims, setClaims] = useState<Claim[]>(() => {
-    const rawClaims = claimsService.getClaims();
-    // Map the service data to the display format
-    return rawClaims.map(claim => ({
-      ...claim,
-      claimId: claim.id || `FRA-${claim.id}`,
-      type: claim.claimType || 'IFR',
-      applicant: claim.applicantName || 'Unknown Applicant',
-      block: 'Kalahandi',
-      district: 'Kalahandi',
-      state: 'Odisha',
-      tribalGroup: 'Gond',
-      areaHectares: claim.area,
-      grantDate: claim.approved_at,
-      documentUrl: claim.document_url
-    }));
-  });
+  const [claims, setClaims] = useState<Claim[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await supabaseClaimsService.listAll();
+        const mapped = rows.map(r => ({
+          id: r.id,
+          user_id: r.user_id,
+          village: r.village,
+          area: r.area,
+          coordinates: r.coordinates,
+          document_url: r.document_url ?? undefined,
+          status: r.status,
+          created_at: r.created_at,
+          approved_at: r.approved_at ?? undefined,
+          applicantName: r.applicant_name ?? undefined,
+          claimType: r.claim_type ?? undefined,
+          documents: r.documents ?? undefined,
+          claimId: r.id || `FRA-${r.id}`,
+          type: r.claim_type || 'IFR',
+          applicant: r.applicant_name || 'Unknown Applicant',
+          block: 'Kalahandi',
+          district: 'Kalahandi',
+          state: 'Odisha',
+          tribalGroup: 'Gond',
+          areaHectares: r.area,
+          grantDate: r.approved_at ?? undefined,
+          documentUrl: r.document_url ?? undefined
+        }));
+        setClaims(mapped);
+      } catch (e) {
+        console.error('Failed to load claims from Supabase', e);
+      }
+    })();
+  }, []);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
