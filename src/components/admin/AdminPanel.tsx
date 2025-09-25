@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Eye, CheckCircle, XCircle, Clock, FileText, MapPin, User, Calendar, Download, Filter, Search, Shield, TreePine, Mountain, Droplets } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Clock, FileText, MapPin, User, Calendar, Download, Filter, Search, Shield, TreePine, RefreshCw } from 'lucide-react';
 import { supabaseClaimsService } from '../../services/supabaseClaimsService';
 import { upsertClaimGeojson, hasGeojson } from '../../services/supabaseGeoService';
 
@@ -16,6 +16,7 @@ interface Claim {
   applicantName?: string;
   claimType?: string;
   documents?: string[];
+  rejection_reason?: string;
   // Additional fields for display
   claimId?: string;
   type?: string;
@@ -49,6 +50,7 @@ export const AdminPanel: React.FC = () => {
           applicantName: r.applicant_name ?? undefined,
           claimType: r.claim_type ?? undefined,
           documents: r.documents ?? undefined,
+          rejection_reason: r.rejection_reason ?? undefined,
           claimId: r.id || `FRA-${r.id}`,
           type: r.claim_type || 'IFR',
           applicant: r.applicant_name || 'Unknown Applicant',
@@ -72,6 +74,46 @@ export const AdminPanel: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [geojsonText, setGeojsonText] = useState<string>('');
   const [geoRequiredError, setGeoRequiredError] = useState<string | null>(null);
+  // Rejection reason state
+  const rejectionCategories: Record<string, string[]> = {
+    'Incomplete / Incorrect Information': [
+      "Claimant name missing or incorrect",
+      "Father’s/Mother’s/Spouse’s name missing",
+      "Gender & Age not provided or invalid",
+      "Caste/Tribal Group not mentioned or invalid",
+      "Village/District/State details incomplete",
+      "Land claimed details missing or unclear",
+      "Survey Number / GPS Coordinates missing or invalid"
+    ],
+    'Document Issues': [
+      "Identity Proof missing",
+      "Identity Proof invalid or unclear",
+      "Tribe/Community Certificate missing",
+      "Tribe/Community Certificate invalid or unclear",
+      "FRA Claim Form (Form-A) missing",
+      "FRA Claim Form (Form-A) invalid or incomplete",
+      "Gram Sabha Resolution missing",
+      "Gram Sabha Resolution invalid or unsigned"
+    ],
+    'Eligibility Issues': [
+      "Claimant not belonging to a recognized Scheduled Tribe / eligible community",
+      "Claimant not residing in the claimed village/district",
+      "Land claimed is outside FRA eligibility area"
+    ],
+    'Verification Issues': [
+      "Gram Sabha Resolution verification failed",
+      "Claim details could not be verified locally",
+      "Duplicate claim found for the same land/survey number"
+    ],
+    'Other Reasons': [
+      'Manually specify reason'
+    ]
+  };
+  const [rejectCategory, setRejectCategory] = useState<string>('');
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [rejectOther, setRejectOther] = useState<string>('');
+  const [rejectInlineError, setRejectInlineError] = useState<string>('');
+  const [showRejectForm, setShowRejectForm] = useState<boolean>(false);
 
   const filteredClaims = claims.filter(claim => {
     const statusMatch = filterStatus === 'all' || claim.status === filterStatus;
@@ -87,7 +129,14 @@ export const AdminPanel: React.FC = () => {
     try {
       let reason: string | undefined;
       if (newStatus === 'rejected') {
-        reason = prompt('Please provide a reason for rejection:') || undefined;
+        // Build reason from dropdowns / text
+        const hasOther = rejectCategory === 'Other Reasons';
+        const chosen = hasOther ? (rejectOther?.trim() || '') : (rejectReason?.trim() || '');
+        if (!rejectCategory || !chosen) {
+          setRejectInlineError('Please select a rejection category and reason (or type a custom reason).');
+          return;
+        }
+        reason = hasOther ? chosen : `${rejectCategory} - ${chosen}`;
       }
       // Require GeoJSON before approving
       if (newStatus === 'approved') {
@@ -113,6 +162,7 @@ export const AdminPanel: React.FC = () => {
         applicantName: r.applicant_name ?? undefined,
         claimType: r.claim_type ?? undefined,
         documents: r.documents ?? undefined,
+        rejection_reason: r.rejection_reason ?? undefined,
         claimId: r.id || `FRA-${r.id}`,
         type: r.claim_type || 'IFR',
         applicant: r.applicant_name || 'Unknown Applicant',
@@ -132,7 +182,22 @@ export const AdminPanel: React.FC = () => {
       setIsModalOpen(false);
       setSelectedClaim(null);
       setGeoRequiredError(null);
+      setRejectCategory('');
+      setRejectReason('');
+      setRejectOther('');
+      setRejectInlineError('');
+      setShowRejectForm(false);
     }
+  };
+
+  const handleRejectClick = () => {
+    setShowRejectForm(true);
+    setRejectInlineError('');
+  };
+
+  const handleConfirmReject = async () => {
+    if (!selectedClaim) return;
+    await handleStatusUpdate(selectedClaim.id!, 'rejected');
   };
 
   const openClaimModal = (claim: Claim) => {
@@ -158,7 +223,7 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = (type: string | undefined) => {
     switch (type) {
       case 'IFR':
         return 'forest-badge bg-forest-sky text-forest-deep';
@@ -194,6 +259,48 @@ export const AdminPanel: React.FC = () => {
             <p className="text-forest-medium text-xl">Review and manage Forest Rights Act claims</p>
           </div>
           <div className="flex items-center space-x-4">
+            <button
+              onClick={() => {
+                // Refresh claims data
+                (async () => {
+                  try {
+                    const rows = await supabaseClaimsService.listAll();
+                    const mapped = rows.map(r => ({
+                      id: r.id,
+                      user_id: r.user_id,
+                      village: r.village,
+                      area: r.area,
+                      coordinates: r.coordinates,
+                      document_url: r.document_url ?? undefined,
+                      status: r.status,
+                      created_at: r.created_at,
+                      approved_at: r.approved_at ?? undefined,
+                      applicantName: r.applicant_name ?? undefined,
+                      claimType: r.claim_type ?? undefined,
+                      documents: r.documents ?? undefined,
+                      rejection_reason: r.rejection_reason ?? undefined,
+                      claimId: r.id || `FRA-${r.id}`,
+                      type: r.claim_type || 'IFR',
+                      applicant: r.applicant_name || 'Unknown Applicant',
+                      block: 'Kalahandi',
+                      district: 'Kalahandi',
+                      state: 'Odisha',
+                      tribalGroup: 'Gond',
+                      areaHectares: r.area,
+                      grantDate: r.approved_at ?? undefined,
+                      documentUrl: r.document_url ?? undefined
+                    }));
+                    setClaims(mapped);
+                  } catch (e) {
+                    console.error('Failed to refresh claims', e);
+                  }
+                })();
+              }}
+              className="forest-button-secondary flex items-center space-x-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Refresh</span>
+            </button>
             <div className="forest-badge-primary">
               <Shield className="h-4 w-4 mr-2" />
               <span>Admin Access</span>
@@ -466,7 +573,92 @@ export const AdminPanel: React.FC = () => {
                           Granted on: {new Date(selectedClaim.grantDate).toLocaleDateString()}
                         </p>
                       )}
+                      {selectedClaim.status === 'rejected' && selectedClaim.rejection_reason && (
+                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-red-700 font-medium text-sm">Rejection Reason:</p>
+                          <p className="text-red-600 text-sm mt-1 italic">"{selectedClaim.rejection_reason}"</p>
+                        </div>
+                      )}
                     </div>
+
+                  {/* Rejection Reason Selector - Only show when admin clicks Reject */}
+                  {selectedClaim.status !== 'approved' && showRejectForm && (
+                    <div className="p-4 bg-forest-sage/10 rounded-xl">
+                      <h4 className="text-forest-deep font-semibold mb-3">Set Rejection Reason</h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <label className="forest-form-label">Category</label>
+                          <select
+                            value={rejectCategory}
+                            onChange={(e) => {
+                              setRejectCategory(e.target.value);
+                              setRejectReason('');
+                              setRejectOther('');
+                              setRejectInlineError('');
+                            }}
+                            className="forest-select w-full"
+                          >
+                            <option value="">Select category</option>
+                            {Object.keys(rejectionCategories).map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {rejectCategory && rejectCategory !== 'Other Reasons' && (
+                          <div>
+                            <label className="forest-form-label">Reason</label>
+                            <select
+                              value={rejectReason}
+                              onChange={(e) => { setRejectReason(e.target.value); setRejectInlineError(''); }}
+                              className="forest-select w-full"
+                            >
+                              <option value="">Select reason</option>
+                              {rejectionCategories[rejectCategory].map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {rejectCategory === 'Other Reasons' && (
+                          <div>
+                            <label className="forest-form-label">Custom Reason</label>
+                            <textarea
+                              value={rejectOther}
+                              onChange={(e) => { setRejectOther(e.target.value); setRejectInlineError(''); }}
+                              placeholder="Type rejection reason"
+                              className="w-full h-20 p-2 border rounded-md text-sm"
+                            />
+                          </div>
+                        )}
+                        {rejectInlineError && (
+                          <p className="text-xs text-red-600">{rejectInlineError}</p>
+                        )}
+                        <p className="text-xs text-forest-medium">Note: Reason will be visible to the claimant.</p>
+                        <div className="flex gap-3 mt-4">
+                          <button
+                            onClick={handleConfirmReject}
+                            disabled={!rejectCategory || (!rejectReason && rejectCategory !== 'Other Reasons') || (rejectCategory === 'Other Reasons' && !rejectOther.trim())}
+                            className="forest-button-error flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            <span>Confirm Rejection</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowRejectForm(false);
+                              setRejectCategory('');
+                              setRejectReason('');
+                              setRejectOther('');
+                              setRejectInlineError('');
+                            }}
+                            className="forest-button-secondary"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="p-4 bg-forest-sage/10 rounded-xl">
                     <h4 className="text-forest-deep font-semibold mb-3">Claim Boundary (GeoJSON):</h4>
@@ -518,7 +710,7 @@ export const AdminPanel: React.FC = () => {
               {selectedClaim.status === 'pending' && (
                 <>
                   <button
-                    onClick={() => handleStatusUpdate(selectedClaim.id!, 'rejected')}
+                    onClick={handleRejectClick}
                     className="forest-button-error flex items-center space-x-2"
                   >
                     <XCircle className="h-4 w-4" />

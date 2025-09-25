@@ -55,15 +55,104 @@ export interface FRADocument {
 export interface AssetMapping {
   id: string;
   claim_id: string;
-  asset_type: 'agricultural_land' | 'forest_cover' | 'water_body' | 'homestead' | 'pond' | 'stream';
+  village_id: string;
+  asset_type: 'agricultural_land' | 'forest_cover' | 'water_body' | 'homestead' | 'pond' | 'stream' | 'infrastructure' | 'mineral_deposit';
   coordinates: {
     lat: number;
     lng: number;
   };
   area_sqm: number;
   confidence_score: number;
-  detected_by: 'satellite_ai' | 'ground_survey' | 'manual';
+  detected_by: 'satellite_ai' | 'ground_survey' | 'manual' | 'drone_survey';
   detection_date: string;
+  satellite_image_url?: string;
+  spectral_signature?: number[];
+  vegetation_index?: number;
+  soil_moisture_index?: number;
+  elevation?: number;
+  slope_angle?: number;
+  aspect?: number;
+  land_use_classification?: string;
+  forest_density?: 'dense' | 'moderate' | 'sparse' | 'degraded';
+  water_quality_index?: number;
+  accessibility_score?: number;
+  economic_value_estimate?: number;
+  conservation_priority?: 'high' | 'medium' | 'low';
+  verification_status?: 'verified' | 'pending' | 'disputed';
+  verification_date?: string;
+  verified_by?: string;
+  notes?: string;
+}
+
+export interface SatelliteImageData {
+  id: string;
+  village_id: string;
+  image_url: string;
+  acquisition_date: string;
+  resolution: number; // meters per pixel
+  cloud_coverage: number; // percentage
+  sensor_type: 'Landsat' | 'Sentinel' | 'MODIS' | 'WorldView' | 'Pleiades';
+  spectral_bands: string[];
+  processing_status: 'raw' | 'processed' | 'analyzed' | 'failed';
+  analysis_results?: AssetMapping[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIModel {
+  id: string;
+  name: string;
+  type: 'land_classification' | 'water_detection' | 'forest_analysis' | 'infrastructure_mapping' | 'soil_analysis';
+  version: string;
+  accuracy: number;
+  status: 'active' | 'training' | 'deprecated' | 'error';
+  last_trained: string;
+  processed_count: number;
+  model_parameters: {
+    algorithm: 'Random Forest' | 'CNN' | 'SVM' | 'Random Forest' | 'XGBoost' | 'U-Net';
+    input_features: string[];
+    output_classes: string[];
+    training_samples: number;
+    validation_accuracy: number;
+    test_accuracy: number;
+  };
+  performance_metrics: {
+    precision: number;
+    recall: number;
+    f1_score: number;
+    confusion_matrix: number[][];
+  };
+}
+
+export interface AssetAnalysisResult {
+  village_id: string;
+  total_area_analyzed: number;
+  assets_detected: AssetMapping[];
+  land_use_summary: {
+    agricultural_land: number;
+    forest_cover: number;
+    water_bodies: number;
+    homesteads: number;
+    infrastructure: number;
+    barren_land: number;
+  };
+  environmental_indicators: {
+    vegetation_health_index: number;
+    water_availability_index: number;
+    soil_fertility_index: number;
+    biodiversity_index: number;
+    carbon_sequestration_potential: number;
+  };
+  development_potential: {
+    agricultural_potential: number;
+    forest_management_potential: number;
+    water_harvesting_potential: number;
+    ecotourism_potential: number;
+    renewable_energy_potential: number;
+  };
+  analysis_date: string;
+  confidence_level: number;
+  recommendations: string[];
 }
 
 export interface CSSScheme {

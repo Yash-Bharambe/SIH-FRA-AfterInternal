@@ -30,8 +30,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   
   const employeeMenuItems = [
     { id: 'dashboard', label: 'Admin Panel', icon: Shield },
+    { id: 'claim-review', label: 'Claim Review', icon: FileText },
     { id: 'fra-atlas', label: 'FRA Atlas', icon: Map },
-    { id: 'documents', label: 'Document Review', icon: FileText },
     { id: 'asset-mapping', label: 'AI Asset Mapping', icon: Brain },
     { id: 'schemes', label: 'DSS Schemes', icon: Landmark },
   ];

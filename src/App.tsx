@@ -11,6 +11,8 @@ import { DocumentUpload } from './components/documents/DocumentUpload';
 import { TerrainAnalysis } from './components/terrain/TerrainAnalysis';
 import { GovernmentSchemes } from './components/schemes/GovernmentSchemes';
 import { AdminPanel } from './components/admin/AdminPanel';
+import { ClaimReview } from './components/admin/ClaimReview';
+import { AIAssetMapping } from './components/ai-asset-mapping/AIAssetMapping';
 import { MyClaims } from './components/public/MyClaims';
 import { ClaimSubmission } from './components/public/ClaimSubmission';
 
@@ -63,6 +65,8 @@ const MainApp: React.FC = () => {
     switch (activeSection) {
       case 'dashboard':
         return userType === 'employee' ? <AdminPanel /> : <MyClaims />;
+      case 'claim-review':
+        return <ClaimReview />;
       case 'submit-claim':
         return <ClaimSubmission />;
       case 'fra-atlas':
@@ -70,7 +74,7 @@ const MainApp: React.FC = () => {
       case 'documents':
         return <DocumentUpload />;
       case 'asset-mapping':
-        return <TerrainAnalysis />;
+        return <AIAssetMapping />;
       case 'schemes':
         return <GovernmentSchemes />;
       default:

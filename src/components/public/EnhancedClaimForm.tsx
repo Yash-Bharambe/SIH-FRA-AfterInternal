@@ -70,7 +70,8 @@ interface FormData {
   claimType: string;
   claimantName: string;
   guardianName: string;
-  genderAge: string;
+  gender: 'Male' | 'Female' | 'Other' | '';
+  age: number | null;
   caste: string;
 
   // Location & Land
@@ -97,7 +98,8 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
     claimType: '',
     claimantName: '',
     guardianName: '',
-    genderAge: '',
+    gender: '',
+    age: null,
     caste: '',
     village: '',
     district: '',
@@ -115,7 +117,8 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
   const [submitted, setSubmitted] = useState(false);
   const [claimantNameInput, setClaimantNameInput] = useState<string>('');
   const [guardianNameInput, setGuardianNameInput] = useState<string>('');
-  const [genderAgeInput, setGenderAgeInput] = useState<string>('');
+  const [genderInput, setGenderInput] = useState<FormData['gender']>('');
+  const [ageInput, setAgeInput] = useState<string>('');
   const [casteInput, setCasteInput] = useState<string>('');
   const [villageInput, setVillageInput] = useState<string>('');
   const [districtInput, setDistrictInput] = useState<string>('');
@@ -134,7 +137,15 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
     }
     if (!touched.claimantName && f.claimantName) setClaimantNameInput(f.claimantName);
     if (!touched.guardianName && f.guardianName) setGuardianNameInput(f.guardianName);
-    if (!touched.genderAge && f.genderAge) setGenderAgeInput(f.genderAge);
+    // Attempt to parse gender & age from a combined OCR field like "Male, 35"
+    if (f.genderAge && !touched.gender) {
+      const lower = f.genderAge.toLowerCase();
+      if (lower.includes('male')) setGenderInput('Male');
+      else if (lower.includes('female')) setGenderInput('Female');
+      else if (lower.includes('other')) setGenderInput('Other');
+      const num = (f.genderAge.match(/\d{1,3}/)?.[0]) || '';
+      if (num && !touched.age) setAgeInput(num);
+    }
     if (!touched.caste && f.caste) setCasteInput(f.caste);
     if (!touched.village && f.village) setVillageInput(f.village);
     if (!touched.district && f.district) setDistrictInput(f.district);
@@ -181,7 +192,8 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
       const synced = {
         claimantName: claimantNameInput,
         guardianName: guardianNameInput,
-        genderAge: genderAgeInput,
+        gender: genderInput,
+        age: ageInput ? Math.max(0, Math.min(120, Number(ageInput))) : null,
         caste: casteInput,
         village: villageInput,
         district: districtInput,
@@ -212,6 +224,7 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
           formData.fraFormA ? 'fraFormA' : '',
           formData.gramSabhaResolution ? 'gramSabhaResolution' : ''
         ].filter(Boolean),
+        // Note: gender & age not sent yet; add after DB columns exist
       } as const;
       console.log('Submitting claim payload:', payload);
       const claim = await supabaseClaimsService.create(payload);
@@ -233,7 +246,8 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
       claimType: '',
       claimantName: '',
       guardianName: '',
-      genderAge: '',
+      gender: '',
+      age: null,
       caste: '',
       village: '',
       district: '',
@@ -251,7 +265,8 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
     setSubmitError(null);
     setClaimantNameInput('');
     setGuardianNameInput('');
-    setGenderAgeInput('');
+    setGenderInput('');
+    setAgeInput('');
     setCasteInput('');
     setVillageInput('');
     setDistrictInput('');
@@ -342,8 +357,35 @@ const EnhancedClaimForm: React.FC<EnhancedClaimFormProps> = ({ onSubmitSuccess }
         </div>
 
         <div>
-          <label className="block text-sm text-forest-medium mb-1">Gender & Age<span className="text-error ml-1 text-xs">*</span></label>
-          <input type="text" value={genderAgeInput} onChange={(e) => setGenderAgeInput(e.target.value)} onBlur={() => { setTouched(prev => ({ ...prev, genderAge: true })); setFormData(prev => ({ ...prev, genderAge: genderAgeInput })); }} className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm" />
+          <label className="block text-sm text-forest-medium mb-1">Gender<span className="text-error ml-1 text-xs">*</span></label>
+          <select
+            name="gender"
+            value={genderInput}
+            onChange={(e) => { setGenderInput(e.target.value as FormData['gender']); setFormData(prev => ({ ...prev, gender: e.target.value as FormData['gender'] })); setTouched(prev => ({ ...prev, gender: true })); }}
+            className="w-full p-2 border rounded-md border-green-200 focus:border-green-600"
+          >
+            <option value="">Select gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-forest-medium mb-1">Age<span className="text-error ml-1 text-xs">*</span></label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={120}
+            value={ageInput}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9]/g, '');
+              setAgeInput(v);
+              setSubmitError(null);
+            }}
+            onBlur={() => { setTouched(prev => ({ ...prev, age: true })); setFormData(prev => ({ ...prev, age: ageInput ? Math.max(0, Math.min(120, Number(ageInput))) : null })); }}
+            className="block w-full px-4 py-3 text-forest-dark bg-white/80 border border-green-200 focus:border-green-600 rounded-md shadow-sm"
+          />
         </div>
         <div>
           <label className="block text-sm text-forest-medium mb-1">Caste / Tribal Group<span className="text-error ml-1 text-xs">*</span></label>

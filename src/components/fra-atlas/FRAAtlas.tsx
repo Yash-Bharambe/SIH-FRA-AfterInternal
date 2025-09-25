@@ -103,7 +103,7 @@ export const FRAAtlas: React.FC = () => {
     farmland: true
   });
 
-  const [geoLayers, setGeoLayers] = useState<{ claim_id: string; status: 'pending' | 'approved' | 'rejected'; geojson: any }[]>([]);
+  const [geoLayers, setGeoLayers] = useState<{ claim_id: string; status: 'pending' | 'approved' | 'rejected'; geojson: any; applicant_name?: string | null; area?: number | null }[]>([]);
   const mapRef = useRef<L.Map | null>(null);
 
   useEffect(() => {
@@ -328,11 +328,47 @@ export const FRAAtlas: React.FC = () => {
           <MapContainer center={defaultCenter} zoom={defaultZoom} whenCreated={(map) => { mapRef.current = map; }} className="w-full h-full">
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {geoLayers.map(layer => (
-              <GeoJSON key={layer.claim_id} data={layer.geojson} style={() => ({
-                color: layer.status === 'approved' ? '#16a34a' : layer.status === 'rejected' ? '#dc2626' : '#ca8a04',
-                weight: 2,
-                fillOpacity: 0.2,
-              })} />
+              <GeoJSON 
+                key={layer.claim_id} 
+                data={layer.geojson} 
+                style={() => ({
+                  color: layer.status === 'approved' ? '#16a34a' : layer.status === 'rejected' ? '#dc2626' : '#ca8a04',
+                  weight: 2,
+                  fillOpacity: 0.2,
+                })}
+                onEachFeature={(_, leafletLayer) => {
+                  let hoverTimer: any;
+                  const status = layer.status;
+                  const applicant = layer.applicant_name ?? 'Unknown claimant';
+                  const area = layer.area != null ? `${layer.area}` : 'N/A';
+                  const tooltipHtml = `
+                    <div style="font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto; font-size: 12px;">
+                      <div style="font-weight: 700; margin-bottom: 4px;">Claim Info</div>
+                      <div><b>Status:</b> ${status}</div>
+                      <div><b>Area:</b> ${area}</div>
+                      <div><b>Claimant:</b> ${applicant}</div>
+                    </div>
+                  `;
+                  leafletLayer.on('mouseover', (e: any) => {
+                    hoverTimer = setTimeout(() => {
+                      leafletLayer.bindTooltip(tooltipHtml, { sticky: true, direction: 'top', opacity: 0.95 }).openTooltip(e.latlng);
+                    }, 2000);
+                  });
+                  leafletLayer.on('mouseout', () => {
+                    if (hoverTimer) {
+                      clearTimeout(hoverTimer);
+                      hoverTimer = null;
+                    }
+                    if ((leafletLayer as any).closeTooltip) {
+                      (leafletLayer as any).closeTooltip();
+                    }
+                  });
+                  leafletLayer.on('click', (e: any) => {
+                    // Immediate show on click as well
+                    leafletLayer.bindTooltip(tooltipHtml, { sticky: true, direction: 'top', opacity: 0.95 }).openTooltip(e.latlng);
+                  });
+                }}
+              />
             ))}
           </MapContainer>
 

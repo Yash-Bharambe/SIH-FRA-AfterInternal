@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle, Clock, XCircle, MapPin, Calendar, Download, Search, Trash2 } from 'lucide-react';
 import { supabaseClaimsService } from '../../services/supabaseClaimsService';
+import { deleteGeojsonByClaimId } from '../../services/supabaseGeoService';
 import { useAuth } from '../../contexts/AuthContext';
 import { Claim } from '../../services/claimsService';
 
-type ClaimWithAck = Claim & { ack_id?: string | null };
+type ClaimWithAck = Claim & { ack_id?: string | null; rejection_reason?: string | null };
 
 export const MyClaims: React.FC = () => {
   const { user } = useAuth();
@@ -47,6 +48,7 @@ export const MyClaims: React.FC = () => {
         claimType: r.claim_type ?? undefined,
         documents: r.documents ?? undefined,
         ack_id: r.ack_id ?? undefined,
+        rejection_reason: r.rejection_reason ?? undefined,
       }));
       const userStats = {
         total: userClaims.length,
@@ -101,7 +103,16 @@ export const MyClaims: React.FC = () => {
     if (!confirm('Are you sure you want to delete this claim? This action cannot be undone.')) return;
     try {
       setDeletingId(id);
+      console.log('Deleting claim with ID:', id);
+      
+      // Remove any FRA Atlas geometry first to keep data consistent
+      await deleteGeojsonByClaimId(id);
+      console.log('Deleted GeoJSON for claim:', id);
+      
+      // Delete the claim from database
       await supabaseClaimsService.deleteById(id);
+      console.log('Successfully deleted claim from database:', id);
+      
       // Optimistically update UI
       setClaims(prev => prev.filter(c => c.id !== id));
       setStats(prev => ({
@@ -110,9 +121,11 @@ export const MyClaims: React.FC = () => {
         pending: prev.pending - (claims.find(c => c.id === id)?.status === 'pending' ? 1 : 0),
         rejected: prev.rejected - (claims.find(c => c.id === id)?.status === 'rejected' ? 1 : 0),
       }));
+      
+      alert('Claim successfully deleted from database and FRA Atlas.');
     } catch (e) {
       console.error('Delete failed', e);
-      alert('Failed to delete the claim. Please try again.');
+      alert(`Failed to delete the claim: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setDeletingId(null);
     }
@@ -336,8 +349,17 @@ export const MyClaims: React.FC = () => {
 
                 {claim.status === 'rejected' && (
                   <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-800">
-                      This claim was rejected. Please review the requirements and submit a new claim.
+                    <p className="text-sm text-red-800 font-semibold mb-2">
+                      This claim was rejected.
+                    </p>
+                    {claim.rejection_reason && (
+                      <div className="mt-2">
+                        <p className="text-sm text-red-700 font-medium">Reason for rejection:</p>
+                        <p className="text-sm text-red-600 mt-1 italic">"{claim.rejection_reason}"</p>
+                      </div>
+                    )}
+                    <p className="text-sm text-red-700 mt-2">
+                      Please review the requirements and submit a new claim.
                     </p>
                   </div>
                 )}

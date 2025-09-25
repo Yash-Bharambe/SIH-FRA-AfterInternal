@@ -25,22 +25,34 @@ export async function hasGeojson(claimId: string): Promise<boolean> {
   return !!data;
 }
 
+export async function deleteGeojsonByClaimId(claimId: string): Promise<void> {
+  const { error } = await supabase
+    .from('claim_geojson')
+    .delete()
+    .eq('claim_id', claimId);
+  if (error) throw error;
+}
+
 export interface GeoWithStatus {
   claim_id: string;
   status: 'pending' | 'approved' | 'rejected';
   geojson: any;
+  applicant_name?: string | null;
+  area?: number | null;
 }
 
 export async function listGeojsonWithStatus(): Promise<GeoWithStatus[]> {
   // Fetch geojson rows and join status from claims
   const { data, error } = await supabase
     .from('claim_geojson')
-    .select('claim_id, geojson, claims!inner(status)');
+    .select('claim_id, geojson, claims!inner(status, applicant_name, area)');
   if (error) throw error;
   return (data as any[]).map(r => ({
     claim_id: r.claim_id,
     status: r.claims.status,
     geojson: r.geojson,
+    applicant_name: r.claims.applicant_name ?? null,
+    area: r.claims.area ?? null,
   }));
 }
 

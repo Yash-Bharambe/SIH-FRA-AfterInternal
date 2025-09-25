@@ -15,25 +15,58 @@ const models = [
   },
   {
     id: 2,
-    name: 'Terrain Analyzer',
-    type: 'Terrain Analysis',
-    version: 'v1.8.0',
-    accuracy: 91.2,
+    name: 'Land Use Classification',
+    type: 'Land Classification',
+    version: 'v3.2.1',
+    accuracy: 94.7,
     status: 'active' as const,
     icon: Brain,
-    lastTrained: '5 days ago',
-    processed: '847 plots'
+    lastTrained: '3 days ago',
+    processed: '15,420 images'
   },
   {
     id: 3,
-    name: 'Satellite Imagery',
-    type: 'Image Classification',
-    version: 'v3.1.2',
+    name: 'Water Body Detection',
+    type: 'Water Detection',
+    version: 'v2.1.3',
     accuracy: 96.3,
-    status: 'training' as const,
+    status: 'active' as const,
     icon: Satellite,
+    lastTrained: '1 day ago',
+    processed: '8,930 images'
+  },
+  {
+    id: 4,
+    name: 'Forest Analysis',
+    type: 'Forest Analysis',
+    version: 'v4.0.2',
+    accuracy: 92.8,
+    status: 'active' as const,
+    icon: Brain,
+    lastTrained: '2 days ago',
+    processed: '12,350 images'
+  },
+  {
+    id: 5,
+    name: 'Infrastructure Mapping',
+    type: 'Infrastructure Detection',
+    version: 'v1.5.0',
+    accuracy: 89.4,
+    status: 'active' as const,
+    icon: Satellite,
+    lastTrained: '4 days ago',
+    processed: '6,780 images'
+  },
+  {
+    id: 6,
+    name: 'Soil Analysis',
+    type: 'Soil Classification',
+    version: 'v2.0.1',
+    accuracy: 87.6,
+    status: 'training' as const,
+    icon: Brain,
     lastTrained: '1 hour ago',
-    processed: '2,134 images'
+    processed: '4,560 samples'
   }
 ];
 

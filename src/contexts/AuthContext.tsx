@@ -118,17 +118,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } else {
         // Allow any email/password for public login
+        // Generate a stable deterministic ID from the email so claims persist across sessions
+        const emailKey = email.trim().toLowerCase();
+        const stableId = `public-${btoa(unescape(encodeURIComponent(emailKey))).replace(/=+$/, '')}`;
         const publicUser: User = {
-          id: `public-${Date.now()}`,
+          id: stableId,
           email: email,
-          name: email.split('@')[0] || 'Public User', // Use email prefix as name
+          name: email.split('@')[0] || 'Public User',
           role: 'citizen',
           department: 'Citizen',
           state: 'Odisha',
           district: 'Kalahandi',
           created_at: new Date().toISOString()
         };
-        
+
         setUser(publicUser);
         setUserType('public');
         localStorage.setItem('fra-user', JSON.stringify(publicUser));
@@ -163,9 +166,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('User already exists');
       }
 
-      // Create new user
+      // Create new user with stable deterministic ID from email
+      const emailKey = email.trim().toLowerCase();
+      const stableId = `public-${btoa(unescape(encodeURIComponent(emailKey))).replace(/=+$/, '')}`;
       const newUser: User = {
-        id: `public-${Date.now()}`,
+        id: stableId,
         email,
         name,
         role: 'citizen',

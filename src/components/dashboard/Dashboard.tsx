@@ -1,7 +1,6 @@
 import React from 'react';
 import { Map, Brain, BarChart3, FileText, TreePine, Droplets, Mountain, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useTranslation } from 'react-i18next';
 
 export const Dashboard: React.FC = () => {
   const { t } = useTranslation();
