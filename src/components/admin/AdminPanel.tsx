@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, CheckCircle, XCircle, Clock, FileText, MapPin, User, Calendar, Download, Filter, Search, Shield, TreePine, Mountain, Droplets } from 'lucide-react';
 import { supabaseClaimsService } from '../../services/supabaseClaimsService';
+import { upsertClaimGeojson, hasGeojson } from '../../services/supabaseGeoService';
 
 interface Claim {
   id?: string;
@@ -69,6 +70,8 @@ export const AdminPanel: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [geojsonText, setGeojsonText] = useState<string>('');
+  const [geoRequiredError, setGeoRequiredError] = useState<string | null>(null);
 
   const filteredClaims = claims.filter(claim => {
     const statusMatch = filterStatus === 'all' || claim.status === filterStatus;
@@ -85,6 +88,14 @@ export const AdminPanel: React.FC = () => {
       let reason: string | undefined;
       if (newStatus === 'rejected') {
         reason = prompt('Please provide a reason for rejection:') || undefined;
+      }
+      // Require GeoJSON before approving
+      if (newStatus === 'approved') {
+        const exists = await hasGeojson(claimId);
+        if (!exists) {
+          setGeoRequiredError('GeoJSON is required before approving. Please paste valid GeoJSON and save.');
+          return;
+        }
       }
       await supabaseClaimsService.updateStatus({ id: claimId, status: newStatus, rejection_reason: reason });
       // Re-fetch from DB to ensure UI reflects persisted state
@@ -120,6 +131,7 @@ export const AdminPanel: React.FC = () => {
     } finally {
       setIsModalOpen(false);
       setSelectedClaim(null);
+      setGeoRequiredError(null);
     }
   };
 
@@ -455,6 +467,40 @@ export const AdminPanel: React.FC = () => {
                         </p>
                       )}
                     </div>
+
+                  <div className="p-4 bg-forest-sage/10 rounded-xl">
+                    <h4 className="text-forest-deep font-semibold mb-3">Claim Boundary (GeoJSON):</h4>
+                    <textarea
+                      value={geojsonText}
+                      onChange={(e) => setGeojsonText(e.target.value)}
+                      placeholder="Paste Feature or FeatureCollection GeoJSON here"
+                      className="w-full h-32 p-2 border rounded-md text-sm"
+                    />
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        className="forest-button-secondary"
+                        onClick={async () => {
+                          try {
+                            const parsed = JSON.parse(geojsonText);
+                            if (!parsed || (parsed.type !== 'Feature' && parsed.type !== 'FeatureCollection')) {
+                              alert('Invalid GeoJSON. Must be Feature or FeatureCollection.');
+                              return;
+                            }
+                            await upsertClaimGeojson(selectedClaim.id!, parsed);
+                            alert('GeoJSON saved for this claim.');
+                            setGeoRequiredError(null);
+                          } catch (err) {
+                            alert('Failed to parse/save GeoJSON.');
+                          }
+                        }}
+                      >
+                        Save GeoJSON
+                      </button>
+                      {geoRequiredError && (
+                        <span className="text-xs text-red-600">{geoRequiredError}</span>
+                      )}
+                    </div>
+                  </div>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Map, Filter, Search, Download, Eye, MapPin, Users, TreePine, Mountain, Droplets, Leaf, ToggleLeft, ToggleRight, BarChart3, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { listGeojsonWithStatus } from '../../services/supabaseGeoService';
+import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const mockFRAData = [
   {
@@ -98,6 +102,44 @@ export const FRAAtlas: React.FC = () => {
     waterBodies: true,
     farmland: true
   });
+
+  const [geoLayers, setGeoLayers] = useState<{ claim_id: string; status: 'pending' | 'approved' | 'rejected'; geojson: any }[]>([]);
+  const mapRef = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await listGeojsonWithStatus();
+        setGeoLayers(rows);
+      } catch {}
+    })();
+  }, []);
+
+  // Center map around Poduchunapadar, Odisha 765015 by default
+  const defaultCenter: [number, number] = [19.427051848890738, 83.27881023459298];
+  const defaultZoom = 14;
+
+  // Fit bounds to all geo layers when available
+  useEffect(() => {
+    if (!mapRef.current || geoLayers.length === 0) return;
+    try {
+      const features: any[] = [];
+      geoLayers.forEach(layer => {
+        if (layer.geojson?.type === 'FeatureCollection') {
+          features.push(...layer.geojson.features);
+        } else if (layer.geojson?.type === 'Feature') {
+          features.push(layer.geojson);
+        }
+      });
+      if (features.length > 0) {
+        const fc = { type: 'FeatureCollection', features } as any;
+        const bounds = L.geoJSON(fc as any).getBounds();
+        if (bounds.isValid()) {
+          mapRef.current.fitBounds(bounds.pad(0.1));
+        }
+      }
+    } catch {}
+  }, [geoLayers]);
 
   const filteredData = mockFRAData.filter(item => {
     const stateMatch = selectedState === 'all' || item.state === selectedState;
@@ -283,13 +325,16 @@ export const FRAAtlas: React.FC = () => {
         </div>
         
         <div className="forest-map relative bg-gradient-to-br from-forest-sky to-forest-light/20 h-[700px] mb-6 overflow-hidden rounded-2xl border-2 border-forest-accent/20">
-     {/* Village Map iframe */}
-<iframe
-  src="https://villagemap.in/odisha/rayagada/kalyanasingpur/4682700.html"
-  className="w-full h-full border-0 rounded-2xl"
-  title="Poduchunapadar Village Map"
-  allowFullScreen
-/>
+          <MapContainer center={defaultCenter} zoom={defaultZoom} whenCreated={(map) => { mapRef.current = map; }} className="w-full h-full">
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {geoLayers.map(layer => (
+              <GeoJSON key={layer.claim_id} data={layer.geojson} style={() => ({
+                color: layer.status === 'approved' ? '#16a34a' : layer.status === 'rejected' ? '#dc2626' : '#ca8a04',
+                weight: 2,
+                fillOpacity: 0.2,
+              })} />
+            ))}
+          </MapContainer>
 
 
 
